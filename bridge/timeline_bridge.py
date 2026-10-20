@@ -16,6 +16,37 @@ from typing import Dict, Any, List
 # Filmcraft exact time constant: 254,016,000,000 integer ticks per second
 FILMCRAFT_TICKS_PER_SECOND = 254_016_000_000
 
+def get_filmcraft_cli_path() -> str:
+    """Locate the compiled filmcraft-cli executable."""
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "filmcraft-standalone"))
+    candidate = os.path.join(base_dir, "target", "debug", "filmcraft-cli.exe")
+    if os.path.exists(candidate):
+        return candidate
+    return "filmcraft-cli"
+
+def invoke_filmcraft_cli(subcommand: str, args: List[str] = None, demo: bool = True) -> Dict[str, Any]:
+    """Execute a headless FilmCraft CLI command and parse JSON output."""
+    cli_path = get_filmcraft_cli_path()
+    cmd = [cli_path]
+    if demo:
+        cmd.append("--demo")
+    cmd.append(subcommand)
+    if args:
+        cmd.extend(args)
+    
+    env = os.environ.copy()
+    mingw_bin = r"C:\Users\DELL\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin"
+    env["PATH"] = f"{mingw_bin};{env.get('PATH', '')}"
+
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    if result.returncode != 0:
+        raise RuntimeError(f"filmcraft-cli failed: {result.stderr or result.stdout}")
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return {"raw_output": result.stdout}
+
+
 def ticks_to_frames(ticks: int, fps: int = 30) -> int:
     """Convert FilmCraft ticks to Remotion frame index."""
     seconds = ticks / FILMCRAFT_TICKS_PER_SECOND
